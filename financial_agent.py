@@ -10,9 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-groq_api_key = os.getenv("GROQ_API_KEY")
-
-##os.environ['HF_TOKEN'] = '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'
+##os.environ['HF_TOKEN'] = ''
 ###login(token=os.environ['HF_TOKEN'])
 
 # We combine tools into one Multi-Purpose Agent to avoid "transfer_task" errors in Groq

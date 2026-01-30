@@ -18,3 +18,5 @@ langchain
 pathlib
 jupyter
 huggingface_hub
+
+- e.
