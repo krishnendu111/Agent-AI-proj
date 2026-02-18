@@ -1,24 +1,45 @@
+# import os
+# import openai
+# from flask import Flask, render_template, request, jsonify
+# from phi.agent import Agent
+# from phi.model.groq import Groq
+# from phi.tools.yfinance import YFinanceTools
+# from phi.tools.duckduckgo import DuckDuckGo
+# from dotenv import load_dotenv
+# import markdown2
+# import yfinance as yf
+
+# load_dotenv()
+
+# app = Flask(__name__)
+
+# Load environment variables (Make sure GROQ_API_KEY is in your .env)
+
 import os
-import openai
+from flask import Flask, render_template, request, jsonify
 from phi.agent import Agent
-from phi.model.groq import Groq
+from phi.model.openai import OpenAIChat # Changed to OpenAI
 from phi.tools.yfinance import YFinanceTools
 from phi.tools.duckduckgo import DuckDuckGo
 from dotenv import load_dotenv
+import markdown2
+import time
 
-# Load environment variables (Make sure GROQ_API_KEY is in your .env)
 load_dotenv()
-openai.api_key = os.getenv("OPENAI_API_KEY")
 
-##os.environ['HF_TOKEN'] = ''
-###login(token=os.environ['HF_TOKEN'])
+app = Flask(__name__)
 
-# We combine tools into one Multi-Purpose Agent to avoid "transfer_task" errors in Groq
+# Ensure OPENAI_API_KEY is in your .env
+openai_key = os.getenv("OPENAI_API_KEY")
+
+# openai.api_key = os.getenv("OPENAI_API_KEY")
+
+# Initialize the Agent with OpenAI
 financial_ai_agent = Agent(
     name="Financial AI Agent",
-    ###model=Groq(id="meta-llama/Llama-3.3-70B-Instruct"),  # Changed to a model optimized for tool calling
+    model=OpenAIChat(id="gpt-4o"),
     tools=[
-        DuckDuckGo(),
+        DuckDuckGo(), 
         YFinanceTools(
             stock_price=True, 
             analyst_recommendations=True, 
@@ -34,46 +55,42 @@ financial_ai_agent = Agent(
         "If you cannot find specific data, state it clearly rather than guessing.",
         "Format your final response in clear Markdown."
     ],
-    show_tool_calls=True,
     markdown=True,
 )
 
-def start_terminal_app():
-    print("====================================================")
-    print("📊 Financial AI Agent (Powered by Groq & Phidata)")
-    print("Type 'exit' or 'quit' to stop the program.")
-    print("====================================================\n")
+@app.route('/')
+def index():
+    return render_template('index.html')
 
-    while True:
-        # Prompt user for company name
-        company = input("Enter the stock/company name: ").strip()
+@app.route('/get_stock', methods=['POST'])
+def get_stock():
+    company = request.form.get('company')
+    if not company:
+        return jsonify({"error": "Please enter a stock name"})
 
-        # Exit condition
-        if company.lower() in ['exit', 'quit']:
-            print("Shutting down... Goodbye!")
-            break
+    prompt = (f"Provide a financial summary and news for {company}. "
+              f"Use tables for data.")
 
-        if not company:
-            continue
-
-        print(f"▰▰▰▰▰▰▱ Thinking about {company}...")
+    start_time = time.time()
+    
+    try:
+        # Use stream=False to ensure we get a RunResponse object, not a generator
+        run_response = financial_ai_agent.run(prompt, stream=False)
         
-        prompt = (
-            f"Summarize analyst recommendations for {company} and find "
-            f"recent news from the last 30 days that could impact their stock prices."
-        )
+        # Verify we actually got content back
+        if run_response and hasattr(run_response, 'content'):
+            content = run_response.content
+        else:
+            # Fallback if the response structure is unexpected
+            content = str(run_response)
 
-        try:
-            # Execute the agent
-            financial_ai_agent.print_response(prompt, stream=True)
-            
-        except Exception as e:
-            # Catch Groq-specific tool errors
-            if "Failed to call a function" in str(e):
-                print("\n[System Note]: Groq had trouble with the tool call. Trying one more time with a simpler request...")
-                financial_ai_agent.print_response(f"Show me the stock price and latest news for {company}", stream=True)
-            else:
-                print(f"\n[Error]: {e}")
+        # Convert to HTML
+        html_output = markdown2.markdown(content, extras=["tables", "fenced-code-blocks"])
+        return jsonify({"output": html_output})
+
+    except Exception as e:
+        print(f"Detailed Error: {e}") # This helps you debug in the terminal
+        return jsonify({"error": f"Agent Error: {str(e)}"}), 500
 
 if __name__ == "__main__":
-    start_terminal_app()
+    app.run(debug=True)

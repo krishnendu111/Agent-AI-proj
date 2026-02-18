@@ -2,7 +2,7 @@ phidata
 python-dotenv
 yfinance
 packaging
-duckduckgo-search
+ddgs
 fastapi
 uvicorn
 groq
@@ -18,5 +18,7 @@ langchain
 pathlib
 jupyter
 huggingface_hub
+flask
+markdown2
 
 - e.

@@ -3,17 +3,19 @@ import streamlit as st
 from dotenv import load_dotenv
 from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound
 
-import google.generativeai as genai
+import google.genai as genai
+from google.genai import types
 
 # Load environment variables from .env
 load_dotenv()
 
-# Configure Gemini API
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+# Configure Gemini API with the new client
+api_key = os.getenv("GOOGLE_API_KEY")
+client = genai.Client(api_key=api_key)
 
 def generate_gemini_summary(transcript_text: str) -> str:
     """
-    Call Gemini Pro to summarize the transcript text.
+    Call Gemini to summarize the transcript text using the latest SDK and model.
     """
     prompt = """
 You are a YouTube video summarizer.
@@ -23,8 +25,13 @@ within about 200–250 words.
 
 Transcript:
 """
-    model = genai.GenerativeModel("gemini-pro")
-    response = model.generate_content(prompt + transcript_text)
+    full_prompt = prompt + transcript_text
+    
+    # Use the latest model for text generation (gemini-2.5-flash is efficient for summarization)
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=types.Part.from_text(text=full_prompt)
+    )
     return response.text
 
 def extract_transcript_text(video_url: str) -> str:
@@ -47,8 +54,8 @@ def extract_transcript_text(video_url: str) -> str:
         ytt_api = YouTubeTranscriptApi()
         transcript = ytt_api.fetch(video_id, languages=["en"])
 
-        # Concatenate all text segments into one long paragraph
-        full_text = " ".join([entry["text"] for entry in transcript])
+        # Concatenate all text segments into one long paragraph (use .text instead of ["text"])
+        full_text = " ".join([entry.text for entry in transcript])
         return full_text.strip()
 
     except TranscriptsDisabled:
@@ -60,7 +67,7 @@ def extract_transcript_text(video_url: str) -> str:
 
 # --------- STREAMLIT UI ---------
 
-st.title("YouTube Video Summarizer with Gemini Pro")
+st.title("YouTube Video Summarizer with Gemini")
 
 video_url = st.text_input("Enter YouTube URL")
 
